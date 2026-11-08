@@ -12,8 +12,8 @@ jobs:
     strategy:
       matrix:
         # 这里定义并行任务的数量和标识
-        task_id: [1, 2, 3, 4, 5]
-      max-parallel: 5  # 5 个任务同时运行，每个 Runner 的出口 IP 通常不同
+        task_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]
+      max-parallel: 20  # 20 个任务同时运行，每个 Runner 的出口 IP 通常不同
       fail-fast: false # 即使一个任务失败，不影响其他任务继续执行
 
     steps:
