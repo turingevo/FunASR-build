@@ -1,0 +1,62 @@
+name: Multi-IP Bilibili Visit
+
+on:
+  workflow_dispatch:
+  # 建议不要设在整点，错开高峰，避免 GitHub 公共 IP 段被 B 站集中风控
+  schedule:
+    - cron: '17 3 * * *' 
+
+jobs:
+  visit-bilibili:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 这里定义并行任务的数量和标识
+        task_id: [1, 2, 3, 4, 5]
+      max-parallel: 5  # 5 个任务同时运行，每个 Runner 的出口 IP 通常不同
+      fail-fast: false # 即使一个任务失败，不影响其他任务继续执行
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show IP and Visit Bilibili (Task ${{ matrix.task_id }})
+        env:
+          # 核心：设置 B 站风控检查所必需的请求头
+          TARGET_BV: "BV1nUxB65EHS"
+          BILI_UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          BILI_REFERER: "https://www.bilibili.com/video/BV1nUxB65EHS"
+        run: |
+          echo "=== 任务 ${{ matrix.task_id }} 开始执行 ==="
+
+          # 1. 先打印当前 Runner 的出口 IP
+          echo "当前出口 IP:"
+          curl -s https://api.ipify.org || echo "IP 获取失败"
+
+          # 2. 访问 B 站“视频信息” API，并带上必需的请求头
+          # 该接口无需登录即可返回视频的 aid, cid, title, owner 等基础信息
+          echo -e "\n--- 正在请求视频信息 API ---"
+          curl -s -H "User-Agent: $BILI_UA" \
+                  -H "Referer: $BILI_REFERER" \
+                  "https://api.bilibili.com/x/web-interface/view?bvid=$TARGET_BV" \
+                  -o response.json
+
+          # 3. 从返回的 JSON 中提取标题和 cid，验证请求是否成功
+          if command -v jq &> /dev/null; then
+            echo "视频标题: $(jq -r '.data.title' response.json)"
+            echo "视频 CID: $(jq -r '.data.cid' response.json)"
+            echo "UP主: $(jq -r '.data.owner.name' response.json)"
+          else
+            # 如果 runner 没有 jq，用 grep 粗略查看
+            echo "API 响应片段:"
+            head -c 300 response.json
+          fi
+
+          # 4. （可选）直接访问视频网页本身，模拟一次页面浏览
+          echo -e "\n--- 正在访问视频网页 ---"
+          curl -s -o /dev/null -w "HTTP 状态码: %{http_code}\n" \
+               -H "User-Agent: $BILI_UA" \
+               -H "Referer: https://www.bilibili.com/" \
+               "https://www.bilibili.com/video/$TARGET_BV/"
+
+          echo "=== 任务 ${{ matrix.task_id }} 结束 ==="
